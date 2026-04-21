@@ -14,7 +14,7 @@ class PostStore extends FormRequest
      */
     public function authorize(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -25,7 +25,7 @@ class PostStore extends FormRequest
     public function rules(): array
     {
         return [
-            'media' => 'json|required',
+            'media' => 'array|required',
             'tag_category' => 'array|required',
             'caption' => 'string|nullable|min:0',
             'tagline' => 'string|required|max:250',
@@ -34,15 +34,3 @@ class PostStore extends FormRequest
         ];
     }
 }
-
-//   protected $fillable = [
-//         'user_id',
-//         'media',
-//         'caption',
-//         'tag_category',
-//         'tag_location',
-
-
-//         'tagline'
-
-//     ];

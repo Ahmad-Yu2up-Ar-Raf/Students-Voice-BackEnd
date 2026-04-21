@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Repost extends Model
 {
-      protected $table = 'repost';
+      protected $table = 'reposts';
     protected $fillable = [
-    'post_id'
+    'post_id',
+    'user_id'
     ];
 
     public function user(): BelongsTo {

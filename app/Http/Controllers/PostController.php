@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\PostStore;
-use App\Models\Post;
 
-use Illuminate\Support\Facades\Auth;
+use App\Models\Post;
+use Illuminate\Http\Request;
+
 
 class PostController extends Controller
 {
@@ -34,19 +34,25 @@ class PostController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(PostStore $request)
+    public function store(Request $request)
     {
-
+$request->validate([
+ 'media' => 'array|required',
+            'tag_category' => 'array|required',
+            'caption' => 'string|nullable|min:0',
+            'tagline' => 'string|required|max:250',
+            'tag_location' => 'string|required|max:250',
+]);
 
          $data = Post::create([
-            ...$request->validate(),
+            ...$request->all(),
             'user_id' => 1,
          ]);
 
          return response()->json([
             'data' => $data,
             'succes' => true,
-            'user_id' => Auth::id(),
+            // 'user_id' => Auth::id(),
             'message' => 'New Post!'
          ],201);
     }
@@ -83,14 +89,21 @@ class PostController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(PostStore $request, string $id)
+    public function update(Request $request, string $id)
     {
         //
+$request->validate([
+ 'media' => 'array|required',
+            'tag_category' => 'array|required',
+            'caption' => 'string|nullable|min:0',
+            'tagline' => 'string|required|max:250',
+            'tag_location' => 'string|required|max:250',
+]);
 
         $data = Post::findOrFail($id);
 
         $update = $data->update([
-        ...$request->validate(),
+        ...$request->all(),
          'user_id' => 1,
         ]);
 

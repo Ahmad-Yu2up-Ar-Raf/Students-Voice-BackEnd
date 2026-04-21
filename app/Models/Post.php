@@ -16,19 +16,14 @@ class Post extends Model
         'caption',
         'tag_category',
         'tag_location',
-
-
         'tagline'
-
     ];
 
     protected $casts = [
         'media' => 'array',
         'caption' => 'string',
         'tag_category' => 'array',
-        'tag_location' => 'enum',
-
-
+        'tag_location' => 'string',
         'tagline' => TaglineType::class
     ];
 

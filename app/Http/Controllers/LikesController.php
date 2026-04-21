@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Likes;
+use App\Models\Post;
 use Illuminate\Http\Request;
 
 class LikesController extends Controller
@@ -28,14 +29,18 @@ class LikesController extends Controller
      */
     public function store(Request $request)
     {
+
+
         //
         $request->validate([
-            'post_id' => 'required|min:0|integer'
+            'post_id' => 'required|min:0|numeric|exists:posts,id'
+
         ]);
 
+
         $data = Likes::create([
-        ...$request->all(),
-         'user_id' => 1,
+       ...$request->all(),
+        'user_id' => 1
         ]);
 
         return response()->json([

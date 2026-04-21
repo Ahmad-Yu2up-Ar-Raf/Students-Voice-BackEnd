@@ -28,13 +28,15 @@ class RepostController extends Controller
      */
     public function store(Request $request)
     {
-         $request->validate([
-            'post_id' => 'required|min:0|integer'
+          $request->validate([
+            'post_id' => 'required|min:0|numeric|exists:posts,id'
+
         ]);
 
+
         $data = Repost::create([
-        ...$request->all(),
-         'user_id' => 1,
+       ...$request->all(),
+        'user_id' => 1
         ]);
 
         return response()->json([
