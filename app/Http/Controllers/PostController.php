@@ -46,9 +46,10 @@ class PostController extends Controller
             'media.*.type' => 'string|nullable',
             'media.*.size' => 'integer|nullable',
             'media.*.mimeType' => 'string|nullable',
-            'tag_category' => 'array|required',
+            'tag_category' => 'string|required',
             'caption' => 'string|nullable',
             'tagline' => 'string|required|max:250',
+            'visibility' => 'string|required|max:250',
             'tag_location' => 'string|required|max:250',
         ]);
 

@@ -20,7 +20,7 @@ return new class extends Migration
                             // $table->string('authentication');
                             $table->json('media');
                             $table->longText('caption')->nullable();
-                            $table->json('tag_category')->nullable();
+                            $table->string('tag_category')->default('Study')->nullable();
                             $table->string('tag_location')->nullable();
 
                             $table->string('tagline' )->default(TaglineType::Bahagia->value) ;
