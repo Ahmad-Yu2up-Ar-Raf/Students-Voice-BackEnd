@@ -14,13 +14,16 @@ class PostController extends Controller
      */
     public function index()
     {
-        $data = Post::withCount('likes')->withCount('reposts')->paginate(5);
+        $data = Post::orderBy('updated_at', 'desc')
+            ->withCount('likes')
+            ->withCount('reposts')
+            ->paginate(5);
 
         return response()->json([
-        'data' => $data,
-        'succes' => true,
-        'message' => 'Succes!'
-        ],200);
+            'data' => $data,
+            'success' => true,
+            'message' => 'Posts retrieved successfully!'
+        ], 200);
     }
 
     /**
@@ -36,25 +39,29 @@ class PostController extends Controller
      */
     public function store(Request $request)
     {
-$request->validate([
- 'media' => 'array|required',
+        $request->validate([
+            'media' => 'array|required',
+            'media.*.uri' => 'string|required',
+            'media.*.name' => 'string|required',
+            'media.*.type' => 'string|nullable',
+            'media.*.size' => 'integer|nullable',
+            'media.*.mimeType' => 'string|nullable',
             'tag_category' => 'array|required',
-            'caption' => 'string|nullable|min:0',
+            'caption' => 'string|nullable',
             'tagline' => 'string|required|max:250',
             'tag_location' => 'string|required|max:250',
-]);
+        ]);
 
-         $data = Post::create([
+        $data = Post::create([
             ...$request->all(),
-            'user_id' => 1,
-         ]);
+            'user_id' => 1, // TODO: Replace with Auth::id() when authentication is implemented
+        ]);
 
-         return response()->json([
+        return response()->json([
             'data' => $data,
-            'succes' => true,
-            // 'user_id' => Auth::id(),
-            'message' => 'New Post!'
-         ],201);
+            'success' => true,
+            'message' => 'Post created successfully!'
+        ], 201);
     }
 
     /**
@@ -64,18 +71,19 @@ $request->validate([
     {
         $data = Post::find($id);
 
-        if(!$data){
-        return response()->json([
-        'message' => 'Post Not Found',
-        'succes' => false,
-        'data' => null
-        ],404);
-        }else{
-             return response()->json([
-        'message' => 'Post Not Found',
-        'succes' => $data,
-        'data' => null ], 200);
+        if (!$data) {
+            return response()->json([
+                'message' => 'Post not found',
+                'success' => false,
+                'data' => null
+            ], 404);
         }
+
+        return response()->json([
+            'message' => 'Post retrieved successfully',
+            'success' => true,
+            'data' => $data
+        ], 200);
     }
 
     /**
@@ -91,26 +99,31 @@ $request->validate([
      */
     public function update(Request $request, string $id)
     {
-        //
-$request->validate([
- 'media' => 'array|required',
+        $request->validate([
+            'media' => 'array|required',
+            'media.*.uri' => 'string|required',
+            'media.*.name' => 'string|required',
+            'media.*.type' => 'string|nullable',
+            'media.*.size' => 'integer|nullable',
+            'media.*.mimeType' => 'string|nullable',
             'tag_category' => 'array|required',
-            'caption' => 'string|nullable|min:0',
+            'caption' => 'string|nullable',
             'tagline' => 'string|required|max:250',
             'tag_location' => 'string|required|max:250',
-]);
+        ]);
 
         $data = Post::findOrFail($id);
 
         $update = $data->update([
-        ...$request->all(),
-         'user_id' => 1,
+            ...$request->all(),
+            'user_id' => 1, // TODO: Replace with Auth::id() when authentication is implemented
         ]);
 
         return response()->json([
-            'succes' => $update,
-
-        ], 201);
+            'data' => $data->refresh(),
+            'success' => $update,
+            'message' => 'Post updated successfully!'
+        ], 200);
     }
 
     /**
@@ -122,7 +135,8 @@ $request->validate([
         $delete = $data->delete();
 
         return response()->json([
-            'succes' => $delete
-        ],201);
+            'success' => $delete,
+            'message' => 'Post deleted successfully!'
+        ], 200);
     }
 }

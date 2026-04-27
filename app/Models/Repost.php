@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use Database\Factories\RepostFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Repost extends Model
 {
-      protected $table = 'reposts';
+    /** @use HasFactory<RepostFactory> */
+    use HasFactory;
+
+    protected $table = 'reposts';
     protected $fillable = [
     'post_id',
     'user_id'
