@@ -1,6 +1,7 @@
 <?php
 
 use App\TaglineType;
+use App\VisibilityEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -23,6 +24,7 @@ return new class extends Migration
                             $table->string('tag_location')->nullable();
 
                             $table->string('tagline' )->default(TaglineType::Bahagia->value) ;
+                            $table->string('visibility' )->default(VisibilityEnum::Public->value) ;
 
         });
     }

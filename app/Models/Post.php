@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\TaglineType;
+use App\VisibilityEnum;
 use Database\Factories\PostFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -29,7 +30,8 @@ class Post extends Model
         'caption' => 'string',
         'tag_category' => 'array',
         'tag_location' => 'string',
-        'tagline' => TaglineType::class
+        'tagline' => TaglineType::class,
+        'visibility' => VisibilityEnum::class
     ];
 
 
