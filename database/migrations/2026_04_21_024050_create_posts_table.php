@@ -18,12 +18,12 @@ return new class extends Migration
             $table->timestamps();
                 $table->foreignId('user_id')->constrained()->onDelete('cascade');
                             // $table->string('authentication');
-                            $table->json('media');
-                            $table->longText('caption')->nullable();
+                            $table->json('media')->nullable();
+                            $table->longText('caption') ;
                             $table->string('tag_category')->default('Study')->nullable();
                             $table->string('tag_location')->nullable();
 
-                            $table->string('tagline' )->default(TaglineType::Bahagia->value) ;
+                            $table->string('tagline' )->default(TaglineType::Happy->value) ;
                             $table->string('visibility' )->default(VisibilityEnum::Public->value) ;
 
         });

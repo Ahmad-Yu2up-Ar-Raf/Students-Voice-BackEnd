@@ -4,6 +4,10 @@ namespace App;
 
 enum TaglineType: string
 {
-    case Bahagia = 'bahagia';
-    case Sedih  = 'sedih';
+    case Happy = 'happy';
+    case Sad  = 'sad';
+    case Anggry = 'anggry';
+    case Productive = 'productive';
+    case Grateful = 'grateful';
+
 }
