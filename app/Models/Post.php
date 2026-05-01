@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+
 #[ObservedBy(PostObserver::class)]
 class Post extends Model
 {
@@ -18,32 +19,38 @@ class Post extends Model
     use HasFactory;
 
     protected $table = 'posts';
+
     protected $fillable = [
         'user_id',
         'media',
         'caption',
         'tag_category',
         'tag_location',
-        'tagline'
+        'tagline',
+        'visibility', // FIX: sebelumnya tidak ada di fillable
     ];
 
     protected $casts = [
-        'media' => 'array',
-        'caption' => 'string',
+        'media'        => 'array',
+        'caption'      => 'string',
         'tag_category' => 'array',
         'tag_location' => 'string',
-        'tagline' => TaglineType::class,
-        'visibility' => VisibilityEnum::class
+        'tagline'      => TaglineType::class,
+        'visibility'   => VisibilityEnum::class,
     ];
 
-
-    public function user() : BelongsTo{
+    public function user(): BelongsTo
+    {
         return $this->belongsTo(User::class, 'user_id');
     }
-    public function likes() : HasMany{
+
+    public function likes(): HasMany
+    {
         return $this->hasMany(Likes::class, 'post_id');
     }
-    public function reposts() : HasMany{
+
+    public function reposts(): HasMany
+    {
         return $this->hasMany(Repost::class, 'post_id');
     }
 }

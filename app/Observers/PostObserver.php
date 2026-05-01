@@ -10,301 +10,236 @@ use Illuminate\Support\Facades\Storage;
 
 class PostObserver
 {
-    protected $fileUploadService;
-
-    protected $jsonFileUploadService;
-
-    // Flag untuk prproduct double execution
-    protected static $isProcessingFiles = false;
+    /**
+     * Flag untuk mencegah double execution.
+     * Static karena observer di-share dalam satu request lifecycle.
+     */
+    protected static bool $isProcessingFiles = false;
 
     public function __construct(
-        FileUploadService $fileUploadService,
-        JsonFileUploadService $jsonFileUploadService
-    ) {
-        $this->fileUploadService = $fileUploadService;
-        $this->jsonFileUploadService = $jsonFileUploadService;
-    }
+        protected FileUploadService $fileUploadService,
+        protected JsonFileUploadService $jsonFileUploadService,
+    ) {}
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // CREATED
+    // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Handle the Post "created" product.
+     * Upload file setelah post dibuat.
+     * File dikirim via FormData binary (media[]) — bukan base64 JSON lagi.
      */
-    public function created(Post $Post): void
+    public function created(Post $post): void
     {
-        // Prevent double execution
         if (self::$isProcessingFiles) {
             return;
         }
 
-        // Get media from request
-        $media = request()->input('media', []);
-        $hasFile = request()->hasFile('media');
-        
-        // Media is optional - only process if media provided and not empty
-        if ($hasFile || (is_array($media) && !empty($media))) {
-            self::$isProcessingFiles = true;
-
-            try {
-                $uploadedFiles = $this->handleFileUploads();
-
-                // Only throw error if user explicitly tried to upload files but failed
-                if (($hasFile || !empty($media)) && empty($uploadedFiles)) {
-                    throw new \Exception('Gagal mengupload file. Pastikan file valid.');
-                }
-
-                // Update post with uploaded files if any
-                if (!empty($uploadedFiles)) {
-                    $Post->updateQuietly(['media' => $uploadedFiles]);
-                }
-
-                Log::info('Files uploaded on create', [
-                    'Post_id' => $Post->id,
-                    'media_count' => count($uploadedFiles),
-                ]);
-
-            } catch (\Exception $e) {
-                Log::error('File upload error on create: '.$e->getMessage());
-                throw $e;
-            } finally {
-                self::$isProcessingFiles = false;
-            }
-        }
-        // Media is optional - no error if not provided
-    }
-
-
-    public function updating(Post $product)
-    {
-
-
-        if (self::$isProcessingFiles) {
-            return;
-        }
-
-
-        if (! request()->has('media')) {
+        // Guard: hanya proses jika ada file yang dikirim
+        if (! request()->hasFile('media')) {
             return;
         }
 
         self::$isProcessingFiles = true;
 
         try {
-            $requestFiles = request('media', []);
-            $oldFiles = $product->getOriginal('media') ?? [];
+            $uploadedFiles = $this->fileUploadService->handleMultipleUploads(
+                request()->file('media'),
+                'Post'
+            );
 
-            Log::info('Processing file update', [
-                'Post_id' => $product->id,
-                'old_media_count' => count($oldFiles),
-                'request_media_count' => count($requestFiles),
-            ]);
-
-            // Jika media kosong, hapus semua file lama
-            if (empty($requestFiles)) {
-                if (! empty($oldFiles)) {
-                    $this->jsonFileUploadService->deleteMultipleFiles($oldFiles);
-                }
-                $product->media = [];
-
-                return;
+            if (empty($uploadedFiles)) {
+                throw new \Exception('Gagal mengupload file. Pastikan format file valid (jpg, jpeg, png, gif, webp).');
             }
 
-            // Pisahkan media menjadi existing dan new media
-            $existingFiles = [];
-            $newFilesData = [];
+            // updateQuietly agar tidak trigger observer lagi
+            $post->updateQuietly(['media' => $uploadedFiles]);
 
-            foreach ($requestFiles as $fileData) {
-                if (isset($fileData['file_path']) && ! isset($fileData['base64Data'])) {
-                    // File existing (sudah ada di storage)
-                    $existingFiles[] = $fileData;
-                } elseif (isset($fileData['base64Data']) && isset($fileData['file'])) {
-                    // File baru dengan base64 data
-                    $newFilesData[] = $fileData;
-                }
-            }
-
-            Log::info('File categorization', [
-                'existing_media' => count($existingFiles),
-                'new_media' => count($newFilesData),
-            ]);
-
-            // Upload file-file baru saja
-            $newUploadedFiles = [];
-            if (! empty($newFilesData)) {
-                $newUploadedFiles = $this->jsonFileUploadService->handleJsonFileUploads(
-                    $newFilesData,
-                    'Post'
-                );
-
-                if (count($newUploadedFiles) !== count($newFilesData)) {
-                    throw new \Exception('Gagal mengupload beberapa file baru.');
-                }
-            }
-
-            // Gabungkan existing media dengan newly uploaded media
-            $finalFiles = array_merge($existingFiles, $newUploadedFiles);
-
-            // Tentukan file mana yang harus dihapus
-            $mediaToDelete = $this->getFilesToDelete($oldFiles, $finalFiles);
-
-            // Hapus file yang tidak digunakan lagi
-            if (! empty($mediaToDelete)) {
-                $this->jsonFileUploadService->deleteMultipleFiles($mediaToDelete);
-                Log::info('Deleted unused media', [
-                    'Post_id' => $product->id,
-                    'deleted_count' => count($mediaToDelete),
-                ]);
-            }
-
-            // Update media
-            $product->media = $finalFiles;
-
-            Log::info('File update completed', [
-                'Post_id' => $product->id,
-                'final_media_count' => count($finalFiles),
+            Log::info('PostObserver: files uploaded on create', [
+                'post_id'     => $post->id,
+                'media_count' => count($uploadedFiles),
             ]);
 
         } catch (\Exception $e) {
-            Log::error('File update error: '.$e->getMessage());
+            Log::error('PostObserver: file upload error on create', [
+                'post_id' => $post->id,
+                'error'   => $e->getMessage(),
+            ]);
             throw $e;
         } finally {
             self::$isProcessingFiles = false;
         }
     }
 
-    /**
-     * Handle the Post "updated" product.
-     */
-    public function updated(Post $Post): void
-    {
-        //
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // UPDATING
+    // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * Handle file deletion before Post is deleted
+     * Handle perubahan media saat post di-update.
+     *
+     * Strategy:
+     *   - existing_media (JSON string) = file lama yang user mau tetap simpan
+     *   - media[] (FormData file)      = file baru yang user upload
+     *   - File lama yang tidak ada di existing_media → dihapus dari storage
+     *
+     * FIX: Tidak lagi membaca base64Data — menggunakan binary file upload.
      */
-    public function deleting(Post $Post)
+    public function updating(Post $post): void
     {
-        // Prproduct double execution
         if (self::$isProcessingFiles) {
             return;
         }
 
-        if ($Post->cover_image && Storage::disk('public')->exists(str_replace('storage/', '', $Post->cover_image))) {
-            Storage::disk('public')->delete(str_replace('storage/', '', $Post->cover_image));
+        $hasNewFiles      = request()->hasFile('media');
+        $hasExistingMedia = request()->has('existing_media');
+
+        // Tidak ada perubahan media sama sekali — skip
+        if (! $hasNewFiles && ! $hasExistingMedia) {
+            return;
         }
 
-        if (! empty($Post->media)) {
-            self::$isProcessingFiles = true;
-
-            try {
-                $Post->refresh();
-
-                Log::info('Attempting to delete media for Post deletion', [
-                    'Post_id' => $Post->id,
-                    'media_count' => count($Post->media),
-                ]);
-
-                $this->jsonFileUploadService->deleteMultipleFiles($Post->media);
-
-                Log::info("Files deleted successfully for Post ID: {$Post->id}");
-
-            } catch (\Exception $e) {
-                Log::error("Failed to delete media for Post ID: {$Post->id}. Error: ".$e->getMessage());
-                // Uncomment jika ingin gagal delete file menggagalkan delete Post
-                // throw new \Exception('Gagal menghapus file terkait: ' . $e->getMessage());
-            } finally {
-                self::$isProcessingFiles = false;
-            }
-        }
-    }
-
-    /**
-     * Handle the Post "deleted" product.
-     */
-    public function deleted(Post $Post): void
-    {
-        //
-    }
-
-    /**
-     * Handle the Post "restored" product.
-     */
-    public function restored(Post $Post): void
-    {
-        //
-    }
-
-    /**
-     * Handle the Post "force deleted" product.
-     */
-    public function forceDeleted(Post $Post): void
-    {
-        //
-    }
-
-    /**
-     * Handle file uploads untuk create
-     */
-    private function handleFileUploads(): array
-    {
-        $uploadedFiles = [];
+        self::$isProcessingFiles = true;
 
         try {
-            // Check if media are UploadedFile objects or JSON data
-            if (request()->hasFile('media')) {
-                // Traditional file upload
-                $uploadedFiles = $this->fileUploadService->handleMultipleUploads(
+            $oldFiles = $post->getOriginal('media') ?? [];
+
+            // ── 1. Parse file lama yang user mau pertahankan ─────────────────
+            $existingFiles = [];
+            if ($hasExistingMedia) {
+                $rawJson       = request()->input('existing_media', '[]');
+                $decoded       = json_decode($rawJson, true);
+                $existingFiles = is_array($decoded) ? $decoded : [];
+            }
+
+            // ── 2. Upload file baru (binary FormData) ─────────────────────────
+            $newUploadedFiles = [];
+            if ($hasNewFiles) {
+                $newUploadedFiles = $this->fileUploadService->handleMultipleUploads(
                     request()->file('media'),
                     'Post'
                 );
 
-                Log::info('Traditional file upload completed', [
-                    'uploaded_count' => count($uploadedFiles),
-                ]);
+                if (empty($newUploadedFiles)) {
+                    throw new \Exception('Gagal mengupload file baru. Pastikan format file valid.');
+                }
+            }
 
-            } elseif (request()->has('media') && is_array(request('media'))) {
-                // JSON file data upload
-                $uploadedFiles = $this->jsonFileUploadService->handleJsonFileUploads(
-                    request('media'),
-                    'Post'
-                );
+            // ── 3. Gabungkan existing + newly uploaded ────────────────────────
+            $finalFiles = array_merge($existingFiles, $newUploadedFiles);
 
-                Log::info('JSON file upload completed', [
-                    'uploaded_count' => count($uploadedFiles),
+            // ── 4. Hapus file lama yang sudah tidak dipakai ───────────────────
+            $filesToDelete = $this->getFilesToDelete($oldFiles, $finalFiles);
+            if (! empty($filesToDelete)) {
+                $this->jsonFileUploadService->deleteMultipleFiles($filesToDelete);
+                Log::info('PostObserver: deleted unused media on update', [
+                    'post_id'       => $post->id,
+                    'deleted_count' => count($filesToDelete),
                 ]);
             }
 
-            return $uploadedFiles;
+            // ── 5. Set media baru ke model (akan di-save oleh Eloquent) ───────
+            $post->media = $finalFiles;
+
+            Log::info('PostObserver: file update completed', [
+                'post_id'     => $post->id,
+                'final_count' => count($finalFiles),
+            ]);
 
         } catch (\Exception $e) {
-            Log::error('File upload error in observer: '.$e->getMessage());
-
-            return [];
+            Log::error('PostObserver: file update error', [
+                'post_id' => $post->id,
+                'error'   => $e->getMessage(),
+            ]);
+            throw $e;
+        } finally {
+            self::$isProcessingFiles = false;
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // DELETING
+    // ─────────────────────────────────────────────────────────────────────────
+
     /**
-     * Determine which media should be deleted
+     * Hapus semua file dari storage sebelum post dihapus.
+     */
+    public function deleting(Post $post): void
+    {
+        if (self::$isProcessingFiles) {
+            return;
+        }
+
+        // Hapus cover_image jika ada
+        if (
+            $post->cover_image &&
+            Storage::disk('public')->exists(str_replace('storage/', '', $post->cover_image))
+        ) {
+            Storage::disk('public')->delete(str_replace('storage/', '', $post->cover_image));
+        }
+
+        if (empty($post->media)) {
+            return;
+        }
+
+        self::$isProcessingFiles = true;
+
+        try {
+            // Refresh agar media yang terbaru diambil dari DB
+            $post->refresh();
+
+            Log::info('PostObserver: deleting media files', [
+                'post_id'     => $post->id,
+                'media_count' => count($post->media),
+            ]);
+
+            $this->jsonFileUploadService->deleteMultipleFiles($post->media);
+
+            Log::info('PostObserver: media files deleted successfully', [
+                'post_id' => $post->id,
+            ]);
+
+        } catch (\Exception $e) {
+            // Log error tapi jangan throw — kita tetap ingin post-nya terhapus
+            Log::error('PostObserver: failed to delete media files', [
+                'post_id' => $post->id,
+                'error'   => $e->getMessage(),
+            ]);
+        } finally {
+            self::$isProcessingFiles = false;
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Stub hooks (diperlukan interface Eloquent observer)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public function updated(Post $post): void {}
+    public function deleted(Post $post): void {}
+    public function restored(Post $post): void {}
+    public function forceDeleted(Post $post): void {}
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Private helpers
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Tentukan file mana yang perlu dihapus dari storage.
+     * File dihapus jika ada di $oldFiles tapi file_path-nya tidak ada di $newFiles.
+     *
+     * @param  array<int, array<string, mixed>> $oldFiles
+     * @param  array<int, array<string, mixed>> $newFiles
+     * @return array<int, array<string, mixed>>
      */
     private function getFilesToDelete(array $oldFiles, array $newFiles): array
     {
-        $newFilePaths = [];
+        $keptPaths = array_filter(
+            array_map(fn (array $f) => $f['file_path'] ?? null, $newFiles)
+        );
 
-        // Ambil semua file_path dari file baru
-        foreach ($newFiles as $newFile) {
-            if (isset($newFile['file_path'])) {
-                $newFilePaths[] = $newFile['file_path'];
-            }
-        }
-
-        $mediaToDelete = [];
-
-        // Cari file lama yang tidak ada lagi di file baru
-        foreach ($oldFiles as $oldFile) {
-            if (isset($oldFile['file_path']) && ! in_array($oldFile['file_path'], $newFilePaths)) {
-                $mediaToDelete[] = $oldFile;
-            }
-        }
-
-        return $mediaToDelete;
+        return array_filter(
+            $oldFiles,
+            fn (array $f) => isset($f['file_path']) && ! in_array($f['file_path'], $keptPaths, true)
+        );
     }
 }
